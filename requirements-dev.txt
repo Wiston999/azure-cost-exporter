@@ -1,0 +1,9 @@
+isort
+black
+flake8
+mypy
+vulture
+pytest
+pytest-cov
+pytest-xdist
+types-python-dateutil

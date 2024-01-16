@@ -7,16 +7,18 @@ group_by:
     - type: Dimension
       name: ServiceName
       label_name: ServiceName
+    - type: Dimension
+      name: ResourceGroupName
+      label_name: ResourceGroupName
   merge_minor_cost:
     # if this is enabled, minor cost that is below the threshold will be merged into one group
     enabled: false
     threshold: 10
     tag_value: other
 
-target_azure_accounts:
-  # here defines a list of target Azure accounts
-  # it should be guaranteed that all the Azure accounts have the same set of keys (in this example they are Publisher, ProjectName, and EnvironmentName)
-  - TenantId: PUT_YOUR_AZURE_TENANT_ID_HERE
-    Subscription: PUT_YOUR_AZURE_SUBSCRIPTION_ID_HERE
-    ProjectName: myproject
-    EnvironmentName: dev
+target_azure_account:
+  # Mandatory parameters
+  Subscription: <mysubscriptionid>
+  # Optional parameters, they translate to metric label, more can be added if needed
+  ProjectName: myproject
+  EnvironmentName: dev
