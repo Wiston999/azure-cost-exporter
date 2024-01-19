@@ -1,13 +1,18 @@
-FROM python:3.10.11-alpine
+FROM python:3.12-slim-bookworm as compile-image
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends build-essential gcc
 
-RUN apk add --update gcc libc-dev linux-headers libffi-dev
+RUN python -m venv /opt/venv
+# Make sure we use the virtualenv:
+ENV PATH="/opt/venv/bin:$PATH"
 
-ENV APP_HOME /app
-WORKDIR /
+COPY . .
+RUN pip install .
 
-COPY ./app $APP_HOME
-COPY *.py package.json requirements.txt /
-RUN pip install -r requirements.txt
+FROM python:3.12-slim-bookworm AS build-image
+COPY --from=compile-image /opt/venv /opt/venv
 
+# Make sure we use the virtualenv:
+ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED 1
-ENTRYPOINT python main.py -c $APP_HOME/exporter_config.yaml -s $APP_HOME/secret.yaml
+ENTRYPOINT ["azure-cost-exporter"]

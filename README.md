@@ -2,29 +2,40 @@
 
 On Azure we usually use the Cost Management portal to analyze costs, which is a separate dashboard and it only contains cost information. What if we would like to see the trends of both costs and the business metrics? Azure Cost Explorter enables this idea by exposing Azure cost data as Prometheus metrics so that developers can have them together with other observability metrics, in the same place.
 
+## NOTICE
+
+This project is **strongly** based on [azure-cost-exporter](https://github.com/opensourceelectrolux/azure-cost-exporter).
+The main difference is that original project is able to scrape cost from several subscription in the same process while
+the forked version is able to scrape costs from a single subscription. On the other hand, the forked version of the project
+supports multiple authentication methods within Azure API (including ServicePrincial, ManagedIdentity, Azure CLI, Azure Powershell)
+due to the usage of [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential?view=azure-python)
+python class.
+
+Additionally, the forked version exports cost in USD and local currency relative to subscription ID.
+
 ## Sample Output
 
 ```
-# HELP azure_daily_cost_usd Daily cost of an Azure account in USD
-# TYPE azure_daily_cost_usd gauge
-azure_daily_cost_usd{ChargeType="ActualCost",EnvironmentName="prod",ProjectName="myproject",ServiceName="Virtual Network",Subscription="<subscription_id_1>",TenantId="<tenant_id_1>"} 0.439500230497108
-azure_daily_cost_usd{ChargeType="ActualCost",EnvironmentName="prod",ProjectName="myproject",ServiceName="VPN Gateway",Subscription="<subscription_id_1>",TenantId="<tenant_id_1>"} 4.191000368311904
-azure_daily_cost_usd{ChargeType="ActualCost",EnvironmentName="dev",ProjectName="myproject",ServiceName="Azure Container Apps",Subscription="<subscription_id_2>",TenantId="<tenant_id_2>"} 0.371846875438938
-azure_daily_cost_usd{ChargeType="ActualCost",EnvironmentName="dev",ProjectName="myproject",ServiceName="Service Bus",Subscription="<subscription_id_2>",TenantId="<tenant_id_2>"} 13.99512952148999
+# HELP azure_daily_cost Daily cost of an Azure account
+# TYPE azure_daily_cost gauge
+azure_daily_cost{ChargeType="ActualCost",Currency="USD",EnvironmentName="dev",ProjectName="myproject",ResourceGroupName="<ResourceGroup>",ServiceName="Azure Bastion",Subscription="<Subscription ID>"} 3.5553768
+azure_daily_cost{ChargeType="ActualCost",Currency="EUR",EnvironmentName="dev",ProjectName="myproject",ResourceGroupName="<ResourceGroup>",ServiceName="Azure Bastion",Subscription="<Subscription ID>"} 3.2016
+azure_daily_cost{ChargeType="ActualCost",Currency="USD",EnvironmentName="dev",ProjectName="myproject",ResourceGroupName="<ResourceGroup>",ServiceName="Azure DNS",Subscription="<Subscription ID>"} 0.0147971447620323
+azure_daily_cost{ChargeType="ActualCost",Currency="EUR",EnvironmentName="dev",ProjectName="myproject",ResourceGroupName="<ResourceGroup>",ServiceName="Azure DNS",Subscription="<Subscription ID>"} 0.0133247589032258
 ...
 ```
 
-*ps: As the metric name indicate, the metric shows the daily costs in USD. `Daily` is based a fixed 24h time window, from UTC 00:00 to UTC 24:00. `EnvironmentName` and `ProjectName` are the custom labels that can be configured. `ServiceName` is a label based on `group_by` configuration.*
+*ps: `Daily` is based a fixed 24h time window, from UTC 00:00 to UTC 24:00.
+`EnvironmentName` and `ProjectName` are the custom labels that can be configured.
+`ServiceName` is a label based on `group_by` configuration.*
 
 ## How Does This Work
 
-Azure Cost Exporter calls Azure Cost Management API (`query.usage`) to fetch cost data. The following figure depicts the work flow of this exporter.
-
-![azure-cost-exporter-design](doc/images/azure-cost-exporter-design.png)
+Azure Cost Exporter calls Azure Cost Management API (`query.usage`) to fetch cost data.
 
 ## Register Application on Azure, Get Credentials
 
-In order to invoke Azure API, the exporter needs to be authenticated first. In the current implementation, it utilizes the client credentials approach. For each target Azure subscription, an application needs to be registered and assigned with the `Cost Management Reader` role.
+In order to invoke Azure API, the identity used to authenticate the application needs to have assigned the `Cost Management Reader` role.
 
 Here are the steps of registering an application.
 
@@ -45,12 +56,15 @@ Here are the steps of creating client credentials.
 
 ## Deployment
 
-Modify the `exporter_config.yaml` file first, then run command `python main.py -c exporter_config.yaml` to generate a `secret.yaml` file. Put the credentials (client ID and client secret) of each Azure account into this file and then this use one of the following methods to run the exporter.
+Modify the `exporter_config.yaml` file according to your needs file.
+Configure the authentication method to be used, if using Service Principal, one of the following set
+of [environment variables](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.environmentcredential?view=azure-python)
+are needed.
 
 ### Docker
 
 ```
-docker run --rm -v ./exporter_config.yaml:/app/exporter_config.yaml -v ./secret.yaml:/app/secret.yaml -p 9090:9090 opensourceelectrolux/azure-cost-exporter:v1.0.1
+docker run --rm -v ./exporter_config.yaml:/app/exporter_config.yaml -p 9090:9090 ghcr.io/Wiston999/azure-cost-exporter:master
 ```
 
 ### Kubernetes
@@ -64,7 +78,9 @@ kubectl create ns finops
 ```
 kubectl create secret generic azure-cost-exporter \
     --namespace=finops \
-    --from-file=./secret.yaml
+    --from-literal=AZURE_TENANT_ID=<Tenant ID> \
+    --from-literal=AZURE_CLIENT_ID=<SP Client ID> \
+    --from-literal=AZURE_CLIENT_SECRET=<SP Client secret>
 ```
 
 - Create ConfigMap
